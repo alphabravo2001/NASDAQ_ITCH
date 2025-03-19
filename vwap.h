@@ -139,11 +139,6 @@ void AddOrderMessage(const char* msg, uint16_t msgLen, char msgType) {
     std::string stockSym(stockBuf);
     boost::algorithm::trim(stockSym);
 
-    size_t startPos = stockSym.find_first_not_of(' ');
-    size_t endPos = stockSym.find_last_not_of(' ');
-    if (startPos != std::string::npos && endPos != std::string::npos)
-        stockSym = stockSym.substr(startPos, endPos - startPos + 1);
-
     uint32_t price = read_4bytes(msg + 32);             // Price (4 bytes at offset 32)
 
     // Parse and ignore the MPID field for "F" messages
