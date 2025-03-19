@@ -211,9 +211,9 @@ void TradeMessage(const char* msg, uint16_t msgLen, uint64_t timestamp)
     uint64_t tradeMatchNum  = read_nbytes(msg + 36, 8);     // matching number (8 bytes at offset 32)
 
     // Update the VWAP aggregator for the target stock
-    TradeAggregate &agg = VWAPaggregator[stockSym];
-    agg.volume += numShares;
-    agg.priceVolume += static_cast<uint64_t>(numShares) * price;
+    auto [it, inserted] = VWAPaggregator.try_emplace(stockSym);
+    it->second.volume += numShares;
+    it->second.priceVolume += static_cast<uint64_t>(numShares) * price;
 
 
     // Record the trade
@@ -247,9 +247,9 @@ void ExecutedOrderMessage(const char* msg, uint16_t msgLen, uint64_t timestamp)
         uint32_t price = od.price;
 
         // Update the VWAP aggregator for the target stock
-        TradeAggregate &agg = VWAPaggregator[od.stock];
-        agg.volume += numShares;
-        agg.priceVolume += static_cast<uint64_t>(numShares) * price;
+        auto [it, inserted] = VWAPaggregator.try_emplace(od.stock);
+        it->second.volume += numShares;
+        it->second.priceVolume += static_cast<uint64_t>(numShares) * price;
 
         // Record the trade
         TradeRecord tr;
@@ -282,9 +282,9 @@ void ExecutedPriceOrderMessage(const char* msg, uint16_t msgLen, uint64_t timest
         OrderData &od = it->second;
 
         // Update the VWAP aggregator for the target stock
-        TradeAggregate &agg = VWAPaggregator[od.stock];
-        agg.volume += numShares;
-        agg.priceVolume += static_cast<uint64_t>(numShares) * executionPrice;
+        auto [it, inserted] = VWAPaggregator.try_emplace(od.stock);
+        it->second.volume += numShares;
+        it->second.priceVolume += static_cast<uint64_t>(numShares) * executionPrice;
 
         // Record the trade
         TradeRecord tr;
@@ -307,7 +307,7 @@ void CrossTradeMessage(const char* msg, uint16_t msgLen, uint64_t timestamp)
 {
     if (msgLen < 39) return;
 
-    uint64_t shares = read_nbytes(msg + 11, 8);  // Number of shares (8 bytes at offset 11)
+    uint64_t numShares = read_nbytes(msg + 11, 8);  // Number of shares (8 bytes at offset 11)
     char stockBuf[9];
     std::memcpy(stockBuf, msg + 19, 8);  // Stock symbol (8 bytes at offset 19)
     stockBuf[8] = '\0';
@@ -317,12 +317,13 @@ void CrossTradeMessage(const char* msg, uint16_t msgLen, uint64_t timestamp)
     uint32_t crossPrice = read_4bytes(msg + 27);  // Cross price (4 bytes at offset 27)
     uint64_t tradeMatchNum = read_nbytes(msg + 31, 8);  // Match number (8 bytes at offset 31)
 
-    if (shares > 0) {
+    if (numShares > 0) {
 
-        //Update the aggregator for VWAP calculations
-        TradeAggregate &agg = VWAPaggregator[stockSym];
-        agg.volume += static_cast<uint32_t>(shares);
-        agg.priceVolume += static_cast<uint64_t>(shares) * crossPrice;
+        // Update the VWAP aggregator for the target stock
+        auto [it, inserted] = VWAPaggregator.try_emplace(stockSym);
+        it->second.volume += numShares;
+        it->second.priceVolume += static_cast<uint64_t>(numShares) * crossPrice;
+
 
         // Record the trade
         TradeRecord tr;
@@ -330,7 +331,7 @@ void CrossTradeMessage(const char* msg, uint16_t msgLen, uint64_t timestamp)
         tr.matchID = tradeMatchNum;
         tr.stock      = stockSym;
         tr.price      = crossPrice;
-        tr.volume     = static_cast<uint32_t>(shares);
+        tr.volume     = static_cast<uint32_t>(numShares);
         tr.timestamp  = timestamp;
         executedTrades[stockSym].push_back(tr);
 
